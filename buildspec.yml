@@ -1,0 +1,23 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.9
+    commands:
+      - pip install -r Search_Function/requirements.txt -t Search_Function/ || true
+      - pip install -r Search_Gateway/requirements.txt -t Search_Gateway/ || true
+      - pip install -r Upload_to_search/requirements.txt -t Upload_to_search/ || true
+      - pip install -r pdftotxt/requirements.txt -t pdftotxt/ || true
+  build:
+    commands:
+      - cd Search_Function && zip -r ../Search_Function.zip . && cd ..
+      - cd Search_Gateway && zip -r ../Search_Gateway.zip . && cd ..
+      - cd Upload_to_search && zip -r ../Upload_to_search.zip . && cd ..
+      - cd pdftotxt && zip -r ../pdftotxt.zip . && cd ..
+artifacts:
+  files:
+    - Search_Function.zip
+    - Search_Gateway.zip
+    - Upload_to_search.zip
+    - pdftotxt.zip
