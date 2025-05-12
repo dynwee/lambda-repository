@@ -1,0 +1,5 @@
+Parameters:
+  SearchFunctionS3Key: Search_Function.zip
+  SearchGatewayS3Key: Search_Gateway.zip
+  UploadToSearchS3Key: Upload_to_search.zip
+  PdfToTxtS3Key: pdftotxt.zip
