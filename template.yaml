@@ -1,35 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Deploy four Lambda functions with S3 bucket created by stack
-
-Parameters:
-Parameters:
-  SearchFunctionS3Key:
-    Type: String
-    Description: S3 key for Search_Function.zip
-    Default: Search_Function.zip
-  SearchGatewayS3Key:
-    Type: String
-    Description: S3 key for Search_Gateway.zip
-    Default: Search_Gateway.zip
-  UploadToSearchS3Key:
-    Type: String
-    Description: S3 key for Upload_to_search.zip
-    Default: Upload_to_search.zip
-  PdfToTxtS3Key:
-    Type: String
-    Description: S3 key for pdftotxt.zip
-    Default: pdftotxt.zip
+Description: Deploy four Lambda functions from existing S3 buckets
 
 Resources:
-  LambdaArtifactsBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketEncryption: 
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-
   SearchFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -37,8 +10,8 @@ Resources:
       Handler: lambda_function.lambda_handler
       Runtime: python3.9
       CodeUri:
-        Bucket: !Ref LambdaArtifactsBucket
-        Key: !Ref SearchFunctionS3Key
+        Bucket: searchfunctioncyassignment
+        Key: Search_Function.zip
       MemorySize: 128
       Timeout: 30
       Policies: AWSLambdaBasicExecutionRole
@@ -50,8 +23,8 @@ Resources:
       Handler: lambda_function.lambda_handler
       Runtime: python3.9
       CodeUri:
-        Bucket: !Ref LambdaArtifactsBucket
-        Key: !Ref SearchGatewayS3Key
+        Bucket: searchgatewaycyassignment
+        Key: Search_Gateway.zip
       MemorySize: 128
       Timeout: 30
       Policies: AWSLambdaBasicExecutionRole
@@ -63,8 +36,8 @@ Resources:
       Handler: lambda_function.lambda_handler
       Runtime: python3.9
       CodeUri:
-        Bucket: !Ref LambdaArtifactsBucket
-        Key: !Ref UploadToSearchS3Key
+        Bucket: uploadtosearchcyassignment
+        Key: Upload_to_search.zip
       MemorySize: 128
       Timeout: 30
       Policies: AWSLambdaBasicExecutionRole
@@ -76,16 +49,13 @@ Resources:
       Handler: lambda_function.lambda_handler
       Runtime: python3.9
       CodeUri:
-        Bucket: !Ref LambdaArtifactsBucket
-        Key: !Ref PdfToTxtS3Key
+        Bucket: searchgatewaycyassignment
+        Key: pdftotxt.zip
       MemorySize: 128
       Timeout: 30
       Policies: AWSLambdaBasicExecutionRole
 
 Outputs:
-  LambdaArtifactsBucketName:
-    Description: Name of the S3 bucket for Lambda artifacts
-    Value: !Ref LambdaArtifactsBucket
   SearchFunctionArn:
     Description: ARN of the SearchFunction Lambda
     Value: !GetAtt SearchFunction.Arn
