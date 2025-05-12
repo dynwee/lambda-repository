@@ -1,374 +1,95 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Deploy four Lambda functions with S3 bucket created by stack
+
 Parameters:
-  ConnectionArn:
-    Description: The CodeConnections ARN for your source repository.
+  SearchFunctionS3Key:
     Type: String
-  FullRepositoryId:
-    Description: The full repository ID to use with your CodeConnections connection.
+    Description: S3 key for Search_Function.zip
+  SearchGatewayS3Key:
     Type: String
-  BranchName:
-    Description: The branch name to use with your CodeConnections connection.
+    Description: S3 key for Search_Gateway.zip
+  UploadToSearchS3Key:
     Type: String
-  CodePipelineName:
-    Description: The CodePipeline pipeline name that will deploy to your CloudFormation stack.
+    Description: S3 key for Upload_to_search.zip
+  PdfToTxtS3Key:
     Type: String
-    Default: DeployToCloudFormationService
-  StackName:
-    Description: The CloudFormation stack name that you want to create or update.
-    Type: String
-  TemplatePath:
-    Description: The path in your source repository to the CloudFormation template file to create or update your stack.
-    Type: String
-  OutputFileName:
-    Description: The path the output from the CloudFormation stack update will be written to.
-    Type: String
-    Default: output.json
-  CloudFormationResourcePermissions:
-    Description: The permission required by CloudFormation to make resource calls on your behalf.
-    Type: String
-  RetentionPolicy:
-    Description: Define if you'd like the resource retained or deleted when the
-      CloudFormation stack is deleted.
-    Type: String
-    Default: Delete
-    AllowedValues:
-      - Delete
-      - Retain
-  TemplateConfiguration:
-    Description: The path to a template configuration file containing parameter values and stack policy for creating or updating your stack.
-    Type: String
-    Default: ''
-  ParameterOverrides:
-    Description: A JSON string to provide parameter values that override defaults in the template or TemplateConfiguration file.
-    Type: String
-    Default: ''
-Conditions:
-  HasTemplateConfiguration: !Not [!Equals ['', !Ref TemplateConfiguration]]
-  HasParameterOverrides: !Not [!Equals ['', !Ref ParameterOverrides]]
+    Description: S3 key for pdftotxt.zip
+
 Resources:
-  CodePipeline:
-    Type: AWS::CodePipeline::Pipeline
-    Properties:
-      ArtifactStore:
-        Location: !Ref CodePipelineArtifactsBucket
-        Type: S3
-      ExecutionMode: QUEUED
-      Name: !Ref CodePipelineName
-      PipelineType: V2
-      RoleArn: !GetAtt CodePipelineRole.Arn
-      Stages:
-        - Name: Source
-          Actions:
-            - Name: CodeConnections
-              ActionTypeId:
-                Category: Source
-                Owner: AWS
-                Provider: CodeStarSourceConnection
-                Version: '1'
-              Configuration:
-                ConnectionArn: !Ref ConnectionArn
-                FullRepositoryId: !Ref FullRepositoryId
-                BranchName: !Ref BranchName
-              OutputArtifacts:
-                - Name: SourceOutput
-              RoleArn: !GetAtt CodePipelineSourceActionRole.Arn
-              RunOrder: 1
-          OnFailure:
-            Result: RETRY
-        - Name: Deploy
-          Actions:
-            - Name: CloudFormation
-              ActionTypeId:
-                Category: Deploy
-                Owner: AWS
-                Provider: CloudFormation
-                Version: '1'
-              Configuration:
-                ActionMode: CREATE_UPDATE
-                Capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND,CAPABILITY_NAMED_IAM
-                StackName: !Ref StackName
-                TemplatePath: !Sub SourceOutput::${TemplatePath}
-                RoleArn: !GetAtt CloudFormationRole.Arn
-                OutputFileName: !Ref OutputFileName
-                TemplateConfiguration:
-                  !If [HasTemplateConfiguration, !Sub "SourceOutput::${TemplateConfiguration}", !Ref "AWS::NoValue"]
-                ParameterOverrides:
-                  !If [HasParameterOverrides, !Ref ParameterOverrides, !Ref "AWS::NoValue"]
-              InputArtifacts:
-                - Name: SourceOutput
-              OutputArtifacts:
-                - Name: DeployOutput
-              RoleArn: !GetAtt CodePipelineDeployActionRole.Arn
-              RunOrder: 1
-          OnFailure:
-            Result: ROLLBACK
-          BeforeEntry:
-            Conditions:
-              - Result: FAIL
-                Rules:
-                  - Name: MyDeploymentWindowRule
-                    RuleTypeId:
-                      Category: Rule
-                      Owner: AWS
-                      Provider: DeploymentWindow
-                      Version: '1'
-                    Configuration:
-                      Cron: '* * * * * ? *'
-                      TimeZone: 'PST'
-    DependsOn:
-      - CodePipelineRoleDefaultPolicy
-  CodePipelineRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Statement:
-          - Action: sts:AssumeRole
-            Effect: Allow
-            Principal:
-              Service: codepipeline.amazonaws.com
-        Version: '2012-10-17'
-  CodePipelineRoleDefaultPolicy:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyDocument:
-        Statement:
-          - Action:
-              - s3:Abort*
-              - s3:DeleteObject*
-              - s3:GetBucket*
-              - s3:GetObject*
-              - s3:List*
-              - s3:PutObject
-              - s3:PutObjectLegalHold
-              - s3:PutObjectRetention
-              - s3:PutObjectTagging
-              - s3:PutObjectVersionTagging
-            Effect: Allow
-            Resource:
-              - !GetAtt CodePipelineArtifactsBucket.Arn
-              - !Join
-                - '/'
-                - - !GetAtt CodePipelineArtifactsBucket.Arn
-                  - '*'
-          - Action:
-              - s3:PutObjectAcl
-              - s3:PutObjectVersionAcl
-            Effect: Allow
-            Resource: !Join
-              - /
-              - - !GetAtt CodePipelineArtifactsBucket.Arn
-                - '*'
-          - Action: sts:AssumeRole
-            Effect: Allow
-            Resource:
-              - !GetAtt CodePipelineSourceActionRole.Arn
-              - !GetAtt CodePipelineDeployActionRole.Arn
-        Version: '2012-10-17'
-      PolicyName: CodePipelineRoleDefaultPolicy
-      Roles:
-        - !Ref CodePipelineRole
-  CodePipelineSourceActionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Statement:
-          - Action: sts:AssumeRole
-            Effect: Allow
-            Principal:
-              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
-        Version: '2012-10-17'
-  CodePipelineSourceActionRoleDefaultPolicy:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyDocument:
-        Statement:
-          - Action: codestar-connections:UseConnection
-            Effect: Allow
-            Resource: !Ref ConnectionArn
-          - Action:
-              - s3:Abort*
-              - s3:DeleteObject*
-              - s3:PutObject
-              - s3:PutObjectLegalHold
-              - s3:PutObjectRetention
-              - s3:PutObjectTagging
-              - s3:PutObjectVersionTagging
-            Effect: Allow
-            Resource:
-              - !GetAtt CodePipelineArtifactsBucket.Arn
-              - !Join
-                - '/'
-                - - !GetAtt CodePipelineArtifactsBucket.Arn
-                  - '*'
-          - Action:
-              - s3:PutObjectAcl
-              - s3:PutObjectVersionAcl
-            Effect: Allow
-            Resource: !Join
-              - /
-              - - !GetAtt CodePipelineArtifactsBucket.Arn
-                - '*'
-        Version: '2012-10-17'
-      PolicyName: CodePipelineSourceActionRoleDefaultPolicy
-      Roles:
-        - !Ref CodePipelineSourceActionRole
-  CodePipelineDeployActionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Statement:
-          - Action: sts:AssumeRole
-            Effect: Allow
-            Principal:
-              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
-        Version: '2012-10-17'
-  CodePipelineDeployActionRoleDefaultPolicy:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyDocument:
-        Statement:
-          - Action:
-              - cloudformation:*
-            Effect: Allow
-            Resource: '*'
-          - Action: iam:PassRole
-            Condition:
-              StringEqualsIfExists:
-                iam:PassedToService:
-                  - cloudformation.amazonaws.com
-            Effect: Allow
-            Resource: '*'
-          - Action:
-              - s3:GetBucket*
-              - s3:GetObject*
-              - s3:List*
-              - s3:PutObject
-              - s3:PutObjectLegalHold
-              - s3:PutObjectRetention
-              - s3:PutObjectTagging
-              - s3:PutObjectVersionTagging
-            Effect: Allow
-            Resource:
-              - !GetAtt CodePipelineArtifactsBucket.Arn
-              - !Join
-                - '/'
-                - - !GetAtt CodePipelineArtifactsBucket.Arn
-                  - '*'
-          - Action:
-              - s3:PutObjectAcl
-              - s3:PutObjectVersionAcl
-            Effect: Allow
-            Resource: !Join
-              - /
-              - - !GetAtt CodePipelineArtifactsBucket.Arn
-                - '*'
-        Version: '2012-10-17'
-      PolicyName: CodePipelineDeployActionRoleDefaultPolicy
-      Roles:
-        - !Ref CodePipelineDeployActionRole
-  CloudFormationRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Statement:
-          - Action: sts:AssumeRole
-            Effect: Allow
-            Principal:
-              Service:
-                - cloudformation.amazonaws.com
-                - codepipeline.amazonaws.com
-        Version: '2012-10-17'
-  CloudFormationRoleDefaultPolicy:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyDocument:
-        Statement:
-          - Action:
-              - cloudformation:*
-            Effect: Allow
-            Resource:
-              - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${StackName}
-          - Action: sts:AssumeRole
-            Effect: Allow
-            Resource:
-              - !GetAtt CodePipelineRole.Arn
-          - Action:
-              - s3:GetBucket*
-              - s3:GetObject*
-              - s3:List*
-              - s3:PutObject
-              - s3:PutObjectLegalHold
-              - s3:PutObjectRetention
-              - s3:PutObjectTagging
-              - s3:PutObjectVersionTagging
-            Effect: Allow
-            Resource:
-              - !GetAtt CodePipelineArtifactsBucket.Arn
-              - !Join
-                - '/'
-                - - !GetAtt CodePipelineArtifactsBucket.Arn
-                  - '*'
-          - Action:
-              - s3:PutObjectAcl
-              - s3:PutObjectVersionAcl
-            Effect: Allow
-            Resource: !Join
-              - /
-              - - !GetAtt CodePipelineArtifactsBucket.Arn
-                - '*'
-          - Action:
-              - logs:CreateLogGroup
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Effect: Allow
-            Resource:
-              - !Sub
-                - arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codepipeline/${pipelineName}
-                - pipelineName: !Ref CodePipelineName
-              - !Sub
-                - arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codepipeline/${pipelineName}:*
-                - pipelineName: !Ref CodePipelineName
-        Version: '2012-10-17'
-      PolicyName: CloudFormationDefaultPolicy
-      Roles:
-        - !Ref CloudFormationRole
-  CloudFormationRoleResourceCreationPolicy:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyDocument: !Ref CloudFormationResourcePermissions
-      PolicyName: CloudFormationResourceCreationPolicy
-      Roles:
-        - !Ref CloudFormationRole
-  CodePipelineArtifactsBucket:
+  LambdaArtifactsBucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
-              SSEAlgorithm: aws:kms
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-    UpdateReplacePolicy: !Ref RetentionPolicy
-    DeletionPolicy: !Ref RetentionPolicy
-  CodePipelineArtifactsBucketPolicy:
-    Type: AWS::S3::BucketPolicy
+              SSEAlgorithm: AES256
+
+  SearchFunction:
+    Type: AWS::Serverless::Function
     Properties:
-      Bucket: !Ref CodePipelineArtifactsBucket
-      PolicyDocument:
-        Statement:
-          - Action: s3:*
-            Condition:
-              Bool:
-                aws:SecureTransport: 'false'
-            Effect: Deny
-            Principal:
-              AWS: '*'
-            Resource:
-              - !GetAtt CodePipelineArtifactsBucket.Arn
-              - !Join
-                - '/'
-                - - !GetAtt CodePipelineArtifactsBucket.Arn
-                  - '*'
-        Version: '2012-10-17'
+      FunctionName: SearchFunction
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      CodeUri:
+        Bucket: !Ref LambdaArtifactsBucket
+        Key: !Ref SearchFunctionS3Key
+      MemorySize: 128
+      Timeout: 30
+      Policies: AWSLambdaBasicExecutionRole
+
+  SearchGateway:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: SearchGateway
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      CodeUri:
+        Bucket: !Ref LambdaArtifactsBucket
+        Key: !Ref SearchGatewayS3Key
+      MemorySize: 128
+      Timeout: 30
+      Policies: AWSLambdaBasicExecutionRole
+
+  UploadToSearch:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: UploadToSearch
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      CodeUri:
+        Bucket: !Ref LambdaArtifactsBucket
+        Key: !Ref UploadToSearchS3Key
+      MemorySize: 128
+      Timeout: 30
+      Policies: AWSLambdaBasicExecutionRole
+
+  PdfToTxt:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: PdfToTxt
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      CodeUri:
+        Bucket: !Ref LambdaArtifactsBucket
+        Key: !Ref PdfToTxtS3Key
+      MemorySize: 128
+      Timeout: 30
+      Policies: AWSLambdaBasicExecutionRole
+
+Outputs:
+  LambdaArtifactsBucketName:
+    Description: Name of the S3 bucket for Lambda artifacts
+    Value: !Ref LambdaArtifactsBucket
+  SearchFunctionArn:
+    Description: ARN of the SearchFunction Lambda
+    Value: !GetAtt SearchFunction.Arn
+  SearchGatewayArn:
+    Description: ARN of the SearchGateway Lambda
+    Value: !GetAtt SearchGateway.Arn
+  UploadToSearchArn:
+    Description: ARN of the UploadToSearch Lambda
+    Value: !GetAtt UploadToSearch.Arn
+  PdfToTxtArn:
+    Description: ARN of the PdfToTxt Lambda
+    Value: !GetAtt PdfToTxt.Arn
