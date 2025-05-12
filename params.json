@@ -1,0 +1,18 @@
+[
+  {
+    "ParameterKey": "SearchFunctionS3Key",
+    "ParameterValue": "Search_Function.zip"
+  },
+  {
+    "ParameterKey": "SearchGatewayS3Key",
+    "ParameterValue": "Search_Gateway.zip"
+  },
+  {
+    "ParameterKey": "UploadToSearchS3Key",
+    "ParameterValue": "Upload_to_search.zip"
+  },
+  {
+    "ParameterKey": "PdfToTxtS3Key",
+    "ParameterValue": "pdftotxt.zip"
+  }
+]
