@@ -3,24 +3,29 @@ Transform: AWS::Serverless-2016-10-31
 Description: Deploy four Lambda functions with S3 bucket created by stack
 
 Parameters:
+Parameters:
   SearchFunctionS3Key:
     Type: String
     Description: S3 key for Search_Function.zip
+    Default: Search_Function.zip
   SearchGatewayS3Key:
     Type: String
     Description: S3 key for Search_Gateway.zip
+    Default: Search_Gateway.zip
   UploadToSearchS3Key:
     Type: String
     Description: S3 key for Upload_to_search.zip
+    Default: Upload_to_search.zip
   PdfToTxtS3Key:
     Type: String
     Description: S3 key for pdftotxt.zip
+    Default: pdftotxt.zip
 
 Resources:
   LambdaArtifactsBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketEncryption:
+      BucketEncryption: 
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
